@@ -1,0 +1,16 @@
+{
+    "board_name": "5x4silverman",
+    "model_name": "target_net_test",
+    "threads": 2,
+    "episodes_per_thread": 2,
+    "replay_buffer_size": 30000,
+    "simulation_steps": 200,
+    "epoch_cap": 1500,
+    "checkpoint_interval": 1,
+    "epoch_checkpoints_to_skip": 0,
+    "prior_noise_coefficient": 0.2,
+    "cpuct": 1.4,
+    "sample_ratio": 0.2,
+    "nondet_plies": 8,
+    "use_tensorboard": true
+}

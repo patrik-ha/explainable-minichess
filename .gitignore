@@ -1,0 +1,6 @@
+.env
+*.zip
+__pycache__
+*.npz
+tensorboard_logs
+minichess/chess/magics/**
