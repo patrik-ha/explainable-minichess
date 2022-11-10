@@ -87,6 +87,6 @@ Starting the training loop with this configuration file is done by running:
 ## Detecting concepts
 After you have trained some agents, (or using the pre-trained ones), you can detect concepts from these by running [/detect_concepts_bulk.ipynb](/detect_concepts_bulk.ipynb). This produces the raw concept-detection data, in the folder [/concept_presences](/concept_presences).
 The graphs are then produced by running [/concept_bootstrap_surface.ipynb](/concept_bootstrap_surface.ipynb) with the name of the model specified at the top of the notebook.
-
+For larger models this is quite resource-intensive, and often requires a lot of VRAM. 
 ## Using the simulator on its own
 This repo provides a relatively fast simulation environment for Python for smaller chess variants. The board size, castling rules, and starting position are fully customizable. The logic for converting moves to/from a neural network policy format is built on top, so the simulator itself can also be detached.
