@@ -11,11 +11,11 @@ This is a codebase that provides:
 2. Run (alternatively inside a virtual environment) `python -m pip install -r requirements.txt`
 
 ## Usage
-The codebase comes with some pre-defined chess variants. These are the standard 8x8-version of chess (called "`8x8standard`"), and 5x4- and 6x6-variants. (called `"5x4silverman"` and `6x6losalomos`, respectively).
+The codebase comes with some pre-defined chess variants. These are the standard 8x8-version of chess (called `8x8standard`), and 5x4- and 6x6-variants. (called `5x4silverman` and `6x6losalomos`, respectively).
 ### Defining your own board
 You can also create your own variant, if you have some specific variaint that you want to explore and train models on.
 #### The board
-These are defined in [/minichess/boards](/minichess/boards). Here, the file "`*.board`"" implicitly defines the starting-position and the board size. If you want to create your own variant, you simply create another file in this folder ("`/minichess/boards/YOUR_CHESS_NAME_HERE.board`"). An example of the standard 8x8 chess position is shown below:
+These are defined in [/minichess/boards](/minichess/boards). Here, the file `*.board` implicitly defines the starting-position and the board size. If you want to create your own variant, you simply create another file in this folder (`/minichess/boards/YOUR_CHESS_NAME_HERE.board`). An example of the standard 8x8 chess position is shown below:
 
 ```
 rnbqkbnr
@@ -30,7 +30,7 @@ RNBQKBNR
 Here, the characters `[r, n, b, q, k]` designate a "rook", "knight", "bishop", "queen",and "king", respectively. If these are upper-case, they are expected to be pieces belonging to the player playing as White, and if lower-case, they belong to the player playing as Black.
 
 #### Castling
-The file "`*.castle`"" defines castling for your specific variant. If your variant doesn't support castling, you don't have to create the file.
+The file `*.castle` defines castling for your specific variant. If your variant doesn't support castling, you don't have to create the file.
 The file supports up to two castling-variants, to the "left", and to the "right". In practice, this means moving the king two squares to the left, or right, and moving the rook to the outside. This means that the configurability for castling is somewhat limited, but from what I could see, most smaller variants that were applicable here either had this type of castling, or didn't support castling at all. For the standard 8x8 chess position, it looks like this.
 ```
 01110000
@@ -46,7 +46,7 @@ Here, each pair of two lines, separated by an empty line, defines a castling var
 If you want to train your own agents, many parts of the training loop can be configured. An example is located in [/configs/base.json](/configs/base.json).
 
 The syntax of this file is:
-```
+```json
 {
     // The board-variant to use for training
     "board_name": "5x4silverman", 
