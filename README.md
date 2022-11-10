@@ -46,7 +46,7 @@ Here, each pair of two lines, separated by an empty line, defines a castling var
 If you want to train your own agents, many parts of the training loop can be configured. An example is located in [/configs/base.json](/configs/base.json).
 
 The syntax of this file is:
-```json
+```javascript
 {
     // The board-variant to use for training
     "board_name": "5x4silverman", 
