@@ -50,7 +50,7 @@ The syntax of this file is:
 {
     // The board-variant to use for training
     "board_name": "5x4silverman", 
-     // What to call the agent (used for folders, etc)
+    // What to call the agent (used for folders, etc)
     "model_name": "target_net_test"
     // Whether to use the resnet-architecture (defined in minichess/agents/resnet.py), or the standard-architecture (defined in minichess/agents/convnet.py)
     "use_resnet": true, 
