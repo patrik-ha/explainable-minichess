@@ -1,5 +1,5 @@
 # Explainable Minichess
-
+Corresponding paper: [https://arxiv.org/abs/2211.05500](https://arxiv.org/abs/2211.05500)
 ## What is this?
 This is a codebase that provides:
 - A fast and adaptable chess-simulator for Python, designed to be used with Reinforcement Learning loops and MCTS
