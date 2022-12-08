@@ -20,10 +20,10 @@ These are defined in [/minichess/boards](/minichess/boards). Here, the file `*.b
 ```
 rnbqkbnr
 pppppppp
-        
-        
-
-
+........
+........
+........
+........
 PPPPPPPP
 RNBQKBNR
 ```
