@@ -37,19 +37,21 @@ def perform_mcts_episodes(args):
 
     agent = PredictorConvNet(LiteModel.from_file("minichess/agents/checkpoints/{}/{}/temp.tflite".format(full_name, model_name)))
 
-    root_priors, root_value = agent.predict(episode_game.agent_board_state())
+    root_value, root_priors = agent.predict(episode_game.agent_board_state())
 
     all_moves, all_moves_inv = calculate_all_moves(dims)
     move_cap = all_moves_inv.shape[0]
-
+    root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
+    montecarlo = MonteCarlo(thread, root, all_moves, move_cap, dims, prior_noise_coefficient, cpuct, root_priors, root_value)
     for episode in range(episodes):
         print("Thread {} starting, episode {}.".format(thread, episode + 1), flush=True)
         episode_game = get_initial_chess_object(full_name)
+        root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
+        montecarlo.move_root(root)
         states = []
         distributions = []
         turns = []
-        root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
-        montecarlo = MonteCarlo(thread, root, all_moves, move_cap, dims, prior_noise_coefficient, cpuct, root_priors, root_value)
+        
         current_ply = 0
         while episode_game.game_result() is None:
 
@@ -99,18 +101,20 @@ def perform_mcts_episodes(args):
         del episode_game
         del root
         gc.collect()
+        montecarlo.episode_done()
     # print("Thread {} finished.".format(thread))
+    montecarlo.all_done()
     return state_buffer, distribution_buffer, value_buffer, game_winners
 
 
 import sys
 
 if __name__ == "__main__":
-    def get_agent(use_resnet):
+    def get_agent(use_resnet, init=True):
         if use_resnet:
-            agent = ResNet(episode_game.agent_board_state().shape, move_cap)
+            agent = ResNet(episode_game.agent_board_state().shape, move_cap, init=init)
         else:
-            agent = ConvNet(episode_game.agent_board_state().shape, move_cap)
+            agent = ConvNet(episode_game.agent_board_state().shape, move_cap, init=init)
         return agent
 
     comm = MPI.COMM_WORLD
@@ -120,7 +124,7 @@ if __name__ == "__main__":
     ranksize = comm.Get_size()
     amount_of_gpus = 1
     np.seterr(over="ignore")
-    if rank == 0:
+    if rank == 0 or rank == 1:
         import tensorflow as tf
         gpus = tf.config.experimental.list_physical_devices("GPU")
         for gpu in gpus:
@@ -143,7 +147,7 @@ if __name__ == "__main__":
     model_name = settings["model_name"]
 
     EPISODES_PER_REFRESH = settings["episodes_per_refresh"]
-    EPISODES_PER_THREAD_INSTANCE = EPISODES_PER_REFRESH // (ranksize - 1)
+    EPISODES_PER_THREAD_INSTANCE = EPISODES_PER_REFRESH // (ranksize - 2)
 
     CHECKPOINT_INTERVAL = settings["checkpoint_interval"]
     EPOCH_CHECKPOINTS_TO_SKIP = settings["epoch_checkpoints_to_skip"]
@@ -204,15 +208,18 @@ if __name__ == "__main__":
             del data
             del results
         if rank == 1:
-            agent = get_agent(USE_RESNET)
+            print("Predictor starting epoch {}.".format(epoch))
+            agent = get_agent(USE_RESNET, False)
+            agent.model = tf.keras.models.load_model("minichess/agents/checkpoints/{}/{}/{}".format(full_name, model_name, epoch - 1))
             predictor = Predictor(ranksize - 2, episode_game.agent_board_state().shape, agent)
-            while True:
+            while not predictor.should_stop():
                 # TODO: break when receiving some message to update net or something
                 predictor.work()
+            print("Predictor halted epoch {}.".format(epoch))
 
         if rank == 0:
             outcomes = []
-            for i in range(1, ranksize):
+            for i in range(2, ranksize):
                 results = comm.recv()
                 print("A result is received!", flush=True)
                 state_buffer.extend(results["states"])
@@ -220,6 +227,13 @@ if __name__ == "__main__":
                     distribution_buffer.append(dist / np.sum(dist))
                 value_buffer.extend(results["values"])
                 outcomes.extend(results["winners"])
+            
+            # Tell the predictor to quit its loop
+            print("Telling predictor to finish its epoch.")
+            buf = np.array([0])
+            res = comm.Isend([buf, MPI.FLOAT], 1, tag=7)
+            res.wait()
+
             outcomes = np.array(outcomes)
             if USE_TENSORBOARD:
                 with summary_writer.as_default():
@@ -241,10 +255,14 @@ if __name__ == "__main__":
                     for loss in ["loss", "value_output_loss", "policy_output_loss"]:
                         tf.summary.scalar(name=loss, data=history.history[loss][0], step=epoch)
                 summary_writer.flush()
+        
+        checkpoint(epoch, agent.model, full_name, model_name, None)
 
-        if (epoch % CHECKPOINT_INTERVAL) == 0 or epoch == 1:
-            checkpoint_path = checkpoint(epoch, agent.model, full_name, model_name, history)
-            if USE_TENSORBOARD:
-                with summary_writer.as_default():
-                    tf.summary.text("Checkpoints", "Checkpoint made at {}.".format(checkpoint_path), step=epoch)
-                summary_writer.flush()
+        if USE_TENSORBOARD:
+            with summary_writer.as_default():
+                tf.summary.text("Checkpoints", "Checkpoint made at {}.".format(checkpoint_path), step=epoch)
+            summary_writer.flush()
+            
+
+
+

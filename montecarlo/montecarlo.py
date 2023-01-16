@@ -19,9 +19,18 @@ class MonteCarlo:
         self.cpuct = cpuct
         self.dims = dims
         self.storage = Storage()
-        self.messager = WorkerMessageHandler(thread, root_priors.shape)
+        self.messager = WorkerMessageHandler(thread, root_priors.shape[0])
         self.root_priors = root_priors
         self.root_value = root_value
+
+    def episode_done(self):
+        self.storage.reset()
+    
+    def all_done(self):
+        print("Waiting for all.")
+        self.messager.wait_all()
+        print("Done waiting for all.")
+
 
     def distribution(self):
         return self.root_node.child_number_visits
@@ -48,8 +57,9 @@ class MonteCarlo:
         for result in results:
             label, (priors, value) = result
             node_to_update = self.storage.retrieve(label)
-            self.revert_virtual_loss(node_to_update)
-            self.apply_results_to_node(node_to_update, priors, value)
+            if node_to_update is not None:
+                self.revert_virtual_loss(node_to_update)
+                self.apply_results_to_node(node_to_update, priors, value)
     
     def apply_results_to_node(self, node, child_priors, value_estimate):
         # The neural net is set to predict positively if the person whose turn it is has a good position.
@@ -98,5 +108,6 @@ class MonteCarlo:
             return
         
         self.apply_virtual_loss(leaf)
+        self.ask_for_neural_net_prediction(leaf)
 
         

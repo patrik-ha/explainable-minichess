@@ -100,7 +100,7 @@ class Chess:
         :return: A fully specified board state
         :rtype: NDArray[float16]
         """
-        full_state = np.zeros((self.dims[0], self.dims[1], 4 + 3 + 2 * 6), dtype=np.float16)
+        full_state = np.zeros((self.dims[0], self.dims[1], 4 + 3 + 2 * 6), dtype=np.float32)
 
         # Brett for trekk og motstander
         for turn in [0, 1]:
@@ -116,7 +116,7 @@ class Chess:
         full_state[:, :, offset + 2][:, :] = self.castling_rights[inv_color(self.turn), 0]
         full_state[:, :, offset + 3][:, :] = self.castling_rights[inv_color(self.turn), 1]
 
-        en_passant_plane = np.zeros((self.dims[0], self.dims[1]), dtype=np.float16)
+        en_passant_plane = np.zeros((self.dims[0], self.dims[1]), dtype=np.float32)
         if self.has_en_passant:
             en_passant_plane[self.en_passant[0], self.en_passant[1]] = 1
 

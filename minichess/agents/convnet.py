@@ -65,8 +65,7 @@ class ConvNet:
     def predict(self, boards):
         if len(boards.shape) == 3:
             boards = np.reshape(boards, (1, *boards.shape))
-        with tf.device('/cpu:0'):
-            res = self.model(boards, training=False)
+        res = self.model(boards, training=False)
         policies, values = res
         return policies, values
 
