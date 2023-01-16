@@ -25,6 +25,7 @@ class Node:
         self.move_cap = move_cap
         self.children = {}
         self.expanded = False
+        self.eval_requested = False
         self.player_number = int(state.turn)
         self.all_moves = all_moves
         self.all_moves_inv = all_moves_inv

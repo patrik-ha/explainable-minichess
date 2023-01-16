@@ -14,6 +14,7 @@ import os
 import gc
 from minichess.chess.fastchess_utils import inv_color, visualize_board
 from mpi4py import MPI
+from montecarlo.predictor import Predictor
 
 
 def perform_mcts_episodes(args):
@@ -36,6 +37,8 @@ def perform_mcts_episodes(args):
 
     agent = PredictorConvNet(LiteModel.from_file("minichess/agents/checkpoints/{}/{}/temp.tflite".format(full_name, model_name)))
 
+    root_priors, root_value = agent.predict(episode_game.agent_board_state())
+
     all_moves, all_moves_inv = calculate_all_moves(dims)
     move_cap = all_moves_inv.shape[0]
 
@@ -46,7 +49,7 @@ def perform_mcts_episodes(args):
         distributions = []
         turns = []
         root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
-        montecarlo = MonteCarlo(root, all_moves, move_cap, dims, prior_noise_coefficient, cpuct, agent)
+        montecarlo = MonteCarlo(thread, root, all_moves, move_cap, dims, prior_noise_coefficient, cpuct, root_priors, root_value)
         current_ply = 0
         while episode_game.game_result() is None:
 
@@ -103,7 +106,16 @@ def perform_mcts_episodes(args):
 import sys
 
 if __name__ == "__main__":
+    def get_agent(use_resnet):
+        if use_resnet:
+            agent = ResNet(episode_game.agent_board_state().shape, move_cap)
+        else:
+            agent = ConvNet(episode_game.agent_board_state().shape, move_cap)
+        return agent
+
     comm = MPI.COMM_WORLD
+    GPU_THREAD = 1
+    MAIN_THREAD = 0
     rank = comm.Get_rank()
     ranksize = comm.Get_size()
     amount_of_gpus = 1
@@ -159,10 +171,7 @@ if __name__ == "__main__":
         launch_tensorboard(base_summary_dir)
 
     if rank == 0:
-        if USE_RESNET:
-            agent = ResNet(episode_game.agent_board_state().shape, move_cap)
-        else:
-            agent = ConvNet(episode_game.agent_board_state().shape, move_cap)
+        agent = get_agent(USE_RESNET)
         checkpoint_path = checkpoint(0, agent.model, full_name, model_name, None)
 
     for epoch in range(1, EPOCHS + 1):
@@ -171,7 +180,7 @@ if __name__ == "__main__":
                 lite_model = LiteModel.from_keras_model_as_bytes(agent.model)
                 f.write(lite_model)
         comm.Barrier()
-        if rank != 0:
+        if rank >= 2:
             results = perform_mcts_episodes((
                 EPISODES_PER_THREAD_INSTANCE,
                 full_name,
@@ -194,11 +203,18 @@ if __name__ == "__main__":
             comm.send(data, 0)
             del data
             del results
-        else:
+        if rank == 1:
+            agent = get_agent(USE_RESNET)
+            predictor = Predictor(ranksize - 2, episode_game.agent_board_state().shape, agent)
+            while True:
+                # TODO: break when receiving some message to update net or something
+                predictor.work()
+
+        if rank == 0:
             outcomes = []
             for i in range(1, ranksize):
                 results = comm.recv()
-                print("A result is recieved!", flush=True)
+                print("A result is received!", flush=True)
                 state_buffer.extend(results["states"])
                 for dist in results["distributions"]:
                     distribution_buffer.append(dist / np.sum(dist))
@@ -211,7 +227,8 @@ if __name__ == "__main__":
         # Generate stuff for three epochs before starting to checkpoint and train
         if rank != 0:
             continue
-        # Now this is only used for the GPU-thread
+        # Train on the main thread
+        # TODO: can it handle giving away the GPU again?
         history = None
         if epoch > EPOCH_CHECKPOINTS_TO_SKIP:
             state_buffer = state_buffer[-REPLAY_BUFFER_CAP:]
