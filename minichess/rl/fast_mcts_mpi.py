@@ -102,11 +102,11 @@ def perform_mcts_episodes(args):
 import sys
 
 if __name__ == "__main__":
-    def get_agent(use_resnet, init=True):
+    def get_agent(use_resnet, init=True, compile_model=True):
         if use_resnet:
-            agent = ResNet(episode_game.agent_board_state().shape, move_cap, init=init)
+            agent = ResNet(episode_game.agent_board_state().shape, move_cap, init=init, compile_model=compile_model)
         else:
-            agent = ConvNet(episode_game.agent_board_state().shape, move_cap, init=init)
+            agent = ConvNet(episode_game.agent_board_state().shape, move_cap, init=init, compile_model=compile_model)
         return agent
 
     comm = MPI.COMM_WORLD
@@ -190,7 +190,7 @@ if __name__ == "__main__":
             del results
     if rank == 1:
         print("Predictor starting.")
-        agent = get_agent(USE_RESNET, True)
+        agent = get_agent(USE_RESNET, True, False)
         agent.load_weights(0, full_name, model_name)
         predictor = Predictor(ranksize - 2, episode_game.agent_board_state().shape, agent, full_name, model_name)
         while True:

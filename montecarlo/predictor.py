@@ -15,7 +15,7 @@ class Predictor:
         self.empty_storage() 
         
         self.net = net
-        self.buffer_threshold = 768
+        self.buffer_threshold = 512
 
         self.full_name = full_name
         self.agent_name = model_name

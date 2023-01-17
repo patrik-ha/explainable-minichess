@@ -56,10 +56,9 @@ class MonteCarlo:
             label, (priors, value) = result
             node_to_update = self.storage.retrieve(label)
             if node_to_update is not None:
-                self.revert_virtual_loss(node_to_update)
-                self.apply_results_to_node(node_to_update, priors, value)
+                self.apply_results_to_node(node_to_update, priors, value + 1)
     
-    def apply_results_to_node(self, node, child_priors, value_estimate):
+    def apply_results_to_node(self, node, child_priors, value_estimate, update_visit_count=False):
         # The neural net is set to predict positively if the person whose turn it is has a good position.
         # 1 means winning for person to play, -1 means losing
         # The search, however, is set up so that -1 is good for black, and 1 is good for white, regardless of who's playing
@@ -79,15 +78,14 @@ class MonteCarlo:
         child_priors = (1 - self.cnoise) * child_priors + self.cnoise * noise
         child_priors /= child_priors.sum()
         node.expand(child_priors)
-        node.update_win_value(value_estimate)
+        node.update_win_value(value_estimate, update_visit_count)
     
-    def revert_virtual_loss(self, node):
-        loss = 1 if node.state.turn == 1 else -1
-        node.update_win_value(loss)
-
     def apply_virtual_loss(self, node):
-        loss = -1 if node.state.turn == 1 else 1
-        node.update_win_value(loss)
+        dummy_priors = np.ones((self.dims[0] * self.dims[1] * self.move_cap))
+        dummy_priors /= np.sum(dummy_priors)
+        dummy_priors = np.reshape(dummy_priors, (self.dims[0], self.dims[1], self.move_cap))
+        node.eval_requested = True
+        self.apply_results_to_node(node, dummy_priors, -1, True)
 
     def simulate(self):
         # If it's just the root node, probably need to return an eval pretty quick...
@@ -96,16 +94,14 @@ class MonteCarlo:
         leaf = self.root_node.select_leaf()
         # If the leaf is a terminal node, just return the actual result
         if leaf.state.game_result() is not None:
-            leaf.update_win_value(leaf.state.game_result())
+            leaf.update_win_value(leaf.state.game_result(), True)
             return
         
         # If it is just the root node, return some pre-cached results
         # Can't really do anything while it's just the root node here
         if leaf is self.root_node:
-            self.apply_results_to_node(leaf, self.root_priors, self.root_value)
+            self.apply_results_to_node(leaf, self.root_priors, self.root_value, True)
             return
         
         self.apply_virtual_loss(leaf)
         self.ask_for_neural_net_prediction(leaf)
-
-        

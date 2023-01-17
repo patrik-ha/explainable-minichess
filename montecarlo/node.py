@@ -88,11 +88,12 @@ class Node:
         child.parent = self
         self.children[(i, j, ind)] = child
 
-    def update_win_value(self, value):
+    def update_win_value(self, value, update_visits=False):
         if self.parent:
-            self.number_visits += 1
+            if update_visits:
+                self.number_visits += 1
             self.win_value += value
-            self.parent.update_win_value(value)
+            self.parent.update_win_value(value, update_visits)
 
     def child_Q(self):
         return self.child_win_value / (1 + self.child_number_visits)
