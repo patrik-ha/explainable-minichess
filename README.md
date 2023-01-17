@@ -1,5 +1,7 @@
 # Explainable Minichess
 Corresponding paper: [https://arxiv.org/abs/2211.05500](https://arxiv.org/abs/2211.05500)
+## Update!
+An implementation supporting virtual loss is available in the branch "/virtual-loss". This gives generally faster model training, given an available GPU. The implementation of the threading is also much cleaner, so it is better to look at "fast_mcts_mpi.py" in this branch for understanding how that is set up. This is not necessary for using and understanding the code relating to concept detection, however.
 ## What is this?
 This is a codebase that provides:
 - A fast and adaptable chess-simulator for Python, designed to be used with Reinforcement Learning loops and MCTS
