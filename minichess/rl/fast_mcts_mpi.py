@@ -2,7 +2,7 @@ from shutil import move
 from minichess.agents.lite_model import LiteModel
 from minichess.agents.predictor_convnet import PredictorConvNet
 from minichess.chess.move_utils import calculate_all_moves, index_to_move
-from minichess.rl.chess_helpers import get_initial_chess_object, get_settings, launch_tensorboard, random_string
+from minichess.rl.chess_helpers import get_initial_chess_object, get_settings
 from montecarlo.node import Node
 from montecarlo.montecarlo import MonteCarlo
 from minichess.rl.case_utils import checkpoint, prepare_distribution
@@ -15,17 +15,13 @@ import gc
 from minichess.chess.fastchess_utils import inv_color, visualize_board
 from mpi4py import MPI
 from montecarlo.predictor import Predictor
+from minichess.rl.caches import save_root_info, load_root_info
+
+from minichess.rl.shard_storage import ShardStorage
 
 
 def perform_mcts_episodes(args):
-
     np.seterr(over="ignore", invalid="raise")
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2'}
-    import tensorflow as tf
-
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
     episodes, full_name, model_name, sim_steps, prior_noise_coefficient, sample_ratio, cpuct, nondet_plies, thread = args
     state_buffer = []
     distribution_buffer = []
@@ -35,16 +31,14 @@ def perform_mcts_episodes(args):
     episode_game = get_initial_chess_object(full_name)
     dims = episode_game.dims
 
-    agent = PredictorConvNet(LiteModel.from_file("minichess/agents/checkpoints/{}/{}/temp.tflite".format(full_name, model_name)))
-
-    root_value, root_priors = agent.predict(episode_game.agent_board_state())
+    root_value, root_priors = load_root_info(full_name, model_name)
 
     all_moves, all_moves_inv = calculate_all_moves(dims)
     move_cap = all_moves_inv.shape[0]
     root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
     montecarlo = MonteCarlo(thread, root, all_moves, move_cap, dims, prior_noise_coefficient, cpuct, root_priors, root_value)
+    print("Thread {} starting shard.".format(thread), flush=True)
     for episode in range(episodes):
-        print("Thread {} starting, episode {}.".format(thread, episode + 1), flush=True)
         episode_game = get_initial_chess_object(full_name)
         root = Node(episode_game, None, move_cap, all_moves, all_moves_inv, nondet_plies, cpuct)
         montecarlo.move_root(root)
@@ -72,7 +66,6 @@ def perform_mcts_episodes(args):
 
             episode_game.make_move(i, j, dx, dy, promotion)
             montecarlo.move_root(selected_child)
-            # visualize_board(episode_game.bitboards, episode_game.dims)
 
             gc.collect()
 
@@ -102,7 +95,6 @@ def perform_mcts_episodes(args):
         del root
         gc.collect()
         montecarlo.episode_done()
-    # print("Thread {} finished.".format(thread))
     montecarlo.all_done()
     return state_buffer, distribution_buffer, value_buffer, game_winners
 
@@ -125,6 +117,7 @@ if __name__ == "__main__":
     amount_of_gpus = 1
     np.seterr(over="ignore")
     if rank == 0 or rank == 1:
+        from minichess.rl.tensorboard_writer import TensorboardWriter
         import tensorflow as tf
         gpus = tf.config.experimental.list_physical_devices("GPU")
         for gpu in gpus:
@@ -163,28 +156,16 @@ if __name__ == "__main__":
     move_cap = all_moves_inv.shape[0]
 
     if rank == 0:
-        state_buffer = []
-        distribution_buffer = []
-        value_buffer = []
-        outcomes = []
-    os.makedirs("minichess/agents/checkpoints/{}/{}".format(full_name, model_name), exist_ok=True)
-    if rank == 0 and USE_TENSORBOARD:
-        base_summary_dir = os.path.join(os.getcwd(), "tensorboard_logs", full_name, model_name)
-        full_summary_dir = os.path.join(base_summary_dir, random_string(5))
-        summary_writer = tf.summary.create_file_writer(full_summary_dir)
-        launch_tensorboard(base_summary_dir)
-
-    if rank == 0:
+        os.makedirs("minichess/agents/checkpoints/{}/{}".format(full_name, model_name), exist_ok=True)
+        shard_storage = ShardStorage(REPLAY_BUFFER_CAP)
+        tensorboard_writer = TensorboardWriter(USE_TENSORBOARD, full_name, model_name)
         agent = get_agent(USE_RESNET)
         checkpoint_path = checkpoint(0, agent.model, full_name, model_name, None)
-
-    for epoch in range(1, EPOCHS + 1):
-        if rank == 0:
-            with open("minichess/agents/checkpoints/{}/{}/temp.tflite".format(full_name, model_name), "wb") as f:
-                lite_model = LiteModel.from_keras_model_as_bytes(agent.model)
-                f.write(lite_model)
-        comm.Barrier()
-        if rank >= 2:
+        save_root_info(agent, full_name, model_name, 0)
+    
+    comm.Barrier()
+    if rank >= 2:
+        while True:
             results = perform_mcts_episodes((
                 EPISODES_PER_THREAD_INSTANCE,
                 full_name,
@@ -203,66 +184,46 @@ if __name__ == "__main__":
                 "values": results[2],
                 "winners": results[3]
             }
-            print("Results from {} sent.".format(rank), flush=True)
+            print("Thread {} finishing shard.".format(rank))
             comm.send(data, 0)
             del data
             del results
-        if rank == 1:
-            print("Predictor starting epoch {}.".format(epoch))
-            agent = get_agent(USE_RESNET, False)
-            agent.model = tf.keras.models.load_model("minichess/agents/checkpoints/{}/{}/{}".format(full_name, model_name, epoch - 1))
-            predictor = Predictor(ranksize - 2, episode_game.agent_board_state().shape, agent)
-            while not predictor.should_stop():
-                # TODO: break when receiving some message to update net or something
-                predictor.work()
-            print("Predictor halted epoch {}.".format(epoch))
+    if rank == 1:
+        print("Predictor starting.")
+        agent = get_agent(USE_RESNET, True)
+        agent.load_weights(0, full_name, model_name)
+        predictor = Predictor(ranksize - 2, episode_game.agent_board_state().shape, agent, full_name, model_name)
+        while True:
+            predictor.work()
 
-        if rank == 0:
-            outcomes = []
-            for i in range(2, ranksize):
+
+    if rank == 0:
+        epoch = 0
+        while True:
+            while True:
                 results = comm.recv()
-                print("A result is received!", flush=True)
-                state_buffer.extend(results["states"])
-                for dist in results["distributions"]:
-                    distribution_buffer.append(dist / np.sum(dist))
-                value_buffer.extend(results["values"])
-                outcomes.extend(results["winners"])
+                # print("A result is received!", flush=True)
+                shard_storage.extend_storage(results["states"], results["distributions"], results["values"], results["winners"])
+                if shard_storage.shards_received != 0 and ((shard_storage.shards_received % EPISODES_PER_REFRESH) == 0):
+                    break
+            epoch += 1
+        
+
+            tensorboard_writer.write_outcomes(shard_storage.outcomes, epoch)                
+            # Might want to generate training data for some epochs before actually starting to train
+            if epoch > EPOCH_CHECKPOINTS_TO_SKIP:
+                shard_storage.truncate_storage()
+                history = agent.fit(*shard_storage.get_training_samples(), epochs=1)
+                tensorboard_writer.write_losses(history, epoch)
             
-            # Tell the predictor to quit its loop
-            print("Telling predictor to finish its epoch.")
-            buf = np.array([0])
+            checkpoint(epoch, agent.model, full_name, model_name, None)
+            tensorboard_writer.write_checkpoint_message(checkpoint_path, epoch)
+
+            save_root_info(agent, full_name, model_name, epoch)
+
+            print("Telling predictor to load weights.")
+            buf = np.array([epoch])
             res = comm.Isend([buf, MPI.FLOAT], 1, tag=7)
             res.wait()
-
-            outcomes = np.array(outcomes)
-            if USE_TENSORBOARD:
-                with summary_writer.as_default():
-                    tf.summary.text("Simulation game results", "W-D-B: {}-{}-{}".format((outcomes == 1).sum(), (outcomes == 2).sum(), (outcomes == 0).sum()), step=epoch)
-        # Generate stuff for three epochs before starting to checkpoint and train
-        if rank != 0:
-            continue
-        # Train on the main thread
-        # TODO: can it handle giving away the GPU again?
-        history = None
-        if epoch > EPOCH_CHECKPOINTS_TO_SKIP:
-            state_buffer = state_buffer[-REPLAY_BUFFER_CAP:]
-            distribution_buffer = distribution_buffer[-REPLAY_BUFFER_CAP:]
-            value_buffer = value_buffer[-REPLAY_BUFFER_CAP:]
-            history = agent.fit(np.array(state_buffer), np.array(distribution_buffer), np.array(value_buffer), epochs=1)
-
-            if USE_TENSORBOARD:
-                with summary_writer.as_default():
-                    for loss in ["loss", "value_output_loss", "policy_output_loss"]:
-                        tf.summary.scalar(name=loss, data=history.history[loss][0], step=epoch)
-                summary_writer.flush()
-        
-        checkpoint(epoch, agent.model, full_name, model_name, None)
-
-        if USE_TENSORBOARD:
-            with summary_writer.as_default():
-                tf.summary.text("Checkpoints", "Checkpoint made at {}.".format(checkpoint_path), step=epoch)
-            summary_writer.flush()
-            
-
 
 

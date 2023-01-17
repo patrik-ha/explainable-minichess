@@ -5,7 +5,7 @@ from .node import Node
 from mpi4py import MPI
 
 class Predictor:
-    def __init__(self, total_worker_threads, state_shape, net):
+    def __init__(self, total_worker_threads, state_shape, net, full_name, model_name):
         self.total_worker_threads = total_worker_threads
         self.thread_offset = 2
         self.state_prototype = np.zeros((*state_shape[0:2], state_shape[2] + 2), dtype=np.float32)
@@ -15,10 +15,14 @@ class Predictor:
         self.empty_storage() 
         
         self.net = net
-        self.buffer_threshold = 256
+        self.buffer_threshold = 768
+
+        self.full_name = full_name
+        self.agent_name = model_name
 
 
     def work(self):
+        self.try_load_weights()
         received_states = []
         requests = []
         did_something = False
@@ -83,11 +87,10 @@ class Predictor:
         self.halting_buf = np.array([0])
         self.halting_req = self.comm.Irecv(self.halting_buf, source=0, tag=7)
     
-    def should_stop(self):
+
+    def try_load_weights(self):
         has_message = self.halting_req.Test()
         if has_message:
             self.halting_req.wait()
-            for _, req in self.requests:
-                MPI.Request.Cancel(req)
-            return True
-        return False
+            self.net.load_weights(self.halting_buf[0], self.full_name, self.agent_name)
+            self.initialize_halting_receiver()

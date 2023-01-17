@@ -19,6 +19,7 @@ def checkpoint(epoch, net, full_name, agent_name, history=None):
     os.makedirs("minichess/agents/checkpoints/{}/{}".format(full_name, agent_name), exist_ok=True)
     checkpoint_path = "minichess/agents/checkpoints/{}/{}/{}".format(full_name, agent_name, epoch)
     net.save(checkpoint_path)
+    net.save_weights(checkpoint_path + ".h5")
     if history is not None:
         with open("minichess/agents/checkpoints/{}/{}/{}.json".format(full_name, agent_name, epoch), "w") as f:
             f.write(json.dumps(history.history))

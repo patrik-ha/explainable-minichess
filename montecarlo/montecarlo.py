@@ -27,9 +27,7 @@ class MonteCarlo:
         self.storage.reset()
     
     def all_done(self):
-        print("Waiting for all.")
         self.messager.wait_all()
-        print("Done waiting for all.")
 
 
     def distribution(self):

@@ -10,18 +10,6 @@ from typing import Tuple
 from minichess.chess.magic import find_magic_bitboards, save_magic_bitboards
 
 
-def random_string(n):
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=n))
-
-
-def launch_tensorboard(directory):
-    from tensorboard import program
-    tb = program.TensorBoard()
-    tb.configure(argv=[None, "--logdir", directory])
-    url = tb.launch()
-    print(f"Tensorboard listening on {url}")
-
-
 def get_settings(config_file_path: str):
     with open(config_file_path) as f:
         return json.load(f)
