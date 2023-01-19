@@ -84,7 +84,6 @@ class MonteCarlo:
         dummy_priors = np.ones((self.dims[0] * self.dims[1] * self.move_cap))
         dummy_priors /= np.sum(dummy_priors)
         dummy_priors = np.reshape(dummy_priors, (self.dims[0], self.dims[1], self.move_cap))
-        node.eval_requested = True
         self.apply_results_to_node(node, dummy_priors, -1, True)
 
     def simulate(self):
