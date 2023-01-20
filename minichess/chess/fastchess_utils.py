@@ -5,7 +5,7 @@ import numpy as np
 from numba import jit, njit
 
 
-@lru_cache
+@jit
 def inv_color(color):
     return 1 - color
 
@@ -65,7 +65,7 @@ def flat(i, j, dims):
     # Also takes "dims" as a deprecated parameter. TODO: remove this
     return np.uint64(8 * i + j)
 
-
+@njit
 def unflat(f, dims):
     # Bad name, but translates a flattened index to its corresponding (i, j)-coordinate tuple
     return int(f // 8), int(f % 8)
@@ -260,6 +260,36 @@ def promotion_masks(dims):
         masks[1] = set_bit(masks[1], flat(0, j, dims))
     return masks
 
+@njit
+def agent_state(dims, bitboards, castling_rights, turn, en_passant, has_en_passant, ply_count_without_adv):
+    full_state = np.zeros((dims[0], dims[1], 4 + 3 + 2 * 6), dtype=np.float32)
+
+    # Brett for trekk og motstander
+    for turn in [0, 1]:
+        for piece_type in range(6):
+            for bit in true_bits(bitboards[turn, piece_type]):
+                i, j = unflat(bit, dims)
+                full_state[i, j, 6 * turn + piece_type] = 1
+    offset = 6 * turn + 6
+    # Mine rokeringsmuligheter
+    full_state[:, :, offset] = castling_rights[turn, 0]
+    full_state[:, :, offset + 1] = castling_rights[turn, 1]
+    # Deres rokeringsmuligheter
+    full_state[:, :, offset + 2][:, :] = castling_rights[inv_color(turn), 0]
+    full_state[:, :, offset + 3][:, :] = castling_rights[inv_color(turn), 1]
+
+    en_passant_plane = np.zeros((dims[0], dims[1]), dtype=np.float32)
+    if has_en_passant:
+        en_passant_plane[en_passant[0], en_passant[1]] = 1
+
+    full_state[:, :, offset + 4] = en_passant_plane
+    full_state[:, :, offset + 5][:, :] = ply_count_without_adv / 20
+    full_state[:, :, offset + 6][:, :] = turn
+
+    if turn == 0:
+        full_state = np.fliplr(full_state)
+        full_state = np.flipud(full_state)
+    return full_state
 
 @njit
 def true_bits(num):
@@ -268,7 +298,7 @@ def true_bits(num):
         num -= temp
         yield int(np.log2(temp))
 
-
+@njit
 def piece_matrix_to_legal_moves(matrix, promotions):
     moves = []
     valid_promotions = [1, 2, 3, 4]
@@ -288,6 +318,57 @@ def piece_matrix_to_legal_moves(matrix, promotions):
 
     return moves
 
+@njit
+def move_to_index(all_moves, dx: int, dy: int, promotion: int, color: bool):
+    if color == 0:
+        dx *= -1
+        dy *= -1
+    if promotion == -1:
+        promotion = 0
+    return all_moves[dx + 8, dy + 8, promotion] - 1
+
+@njit
+def legal_moves_to_illegal_move_mask(moves, proms, child_priors, all_moves, player_number):
+    legal_moves = piece_matrix_to_legal_moves(moves, proms)
+    illegal_moves_mask = np.ones(child_priors)
+    for move in legal_moves:
+        (i, j), (dx, dy), promotion = move
+        ind = move_to_index(all_moves, dx, dy, promotion, player_number)
+        illegal_moves_mask[i, j, ind] = 0
+    return illegal_moves_mask
+
+@njit
+def child_Q(child_win_value, child_number_visits):
+    return child_win_value / (1 + child_number_visits)
+
+@njit
+def child_U(cpuct, number_visits, child_priors, child_number_visits):
+    return cpuct * np.sqrt(number_visits) * (
+        child_priors / (1 + child_number_visits))
+
+@njit
+def get_best_child(player_number, child_win_value, child_number_visits, cpuct, number_visits, child_priors, illegal_moves_mask):
+    if player_number == 0:
+        return np.argmin(child_Q(child_win_value, child_number_visits) - child_U(cpuct, number_visits, child_priors, child_number_visits) + illegal_moves_mask * 100000)
+    else:
+        return np.argmax(child_Q(child_win_value, child_number_visits) + child_U(cpuct, number_visits, child_priors, child_number_visits) - illegal_moves_mask * 100000)
+
+@njit
+def prior_math(illegal_moves_mask, dims, child_priors, move_cap, cnoise, value_estimate, turn):
+    if turn == 0:
+        value_estimate *= -1
+    child_priors = np.reshape(child_priors, (dims[0], dims[1], move_cap))
+    noise = np.random.uniform(0.0, 1.0, size=dims[0] * dims[1] * move_cap)
+    # Sum of noise is equal to 1
+    noise = noise.reshape(child_priors.shape)
+
+    noise = noise * (illegal_moves_mask == 0)
+
+    noise /= noise.sum()
+
+    child_priors = (1 - cnoise) * child_priors + cnoise * noise
+    child_priors /= child_priors.sum()
+    return child_priors
 
 def visualize_board(bitboards, dims):
     for i in range(dims[0]):

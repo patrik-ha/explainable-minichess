@@ -74,7 +74,7 @@ def move_to_index(all_moves, dx: int, dy: int, promotion: int, color: bool):
         promotion = 0
     return all_moves[dx + 8, dy + 8, promotion] - 1
 
-
+@njit
 def index_to_move(all_moves_inv, index: int, color: bool):
     dx, dy, promotion = all_moves_inv[index]
     if color == 0:

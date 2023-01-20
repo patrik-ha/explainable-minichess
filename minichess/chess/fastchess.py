@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set
+from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state
 
 
 class Chess:
@@ -98,36 +98,10 @@ class Chess:
         Creates and gives the complete game state as a n x m x d numpy array. Mainly used as input for neural net models.
 
         :return: A fully specified board state
-        :rtype: NDArray[float16]
+        :rtype: NDArray[float32]
         """
-        full_state = np.zeros((self.dims[0], self.dims[1], 4 + 3 + 2 * 6), dtype=np.float16)
 
-        # Brett for trekk og motstander
-        for turn in [0, 1]:
-            for piece_type in range(6):
-                for bit in true_bits(self.bitboards[turn, piece_type]):
-                    i, j = unflat(bit, self.dims)
-                    full_state[i, j, 6 * turn + piece_type] = 1
-        offset = 6 * turn + 6
-        # Mine rokeringsmuligheter
-        full_state[:, :, offset] = self.castling_rights[self.turn, 0]
-        full_state[:, :, offset + 1] = self.castling_rights[self.turn, 1]
-        # Deres rokeringsmuligheter
-        full_state[:, :, offset + 2][:, :] = self.castling_rights[inv_color(self.turn), 0]
-        full_state[:, :, offset + 3][:, :] = self.castling_rights[inv_color(self.turn), 1]
-
-        en_passant_plane = np.zeros((self.dims[0], self.dims[1]), dtype=np.float16)
-        if self.has_en_passant:
-            en_passant_plane[self.en_passant[0], self.en_passant[1]] = 1
-
-        full_state[:, :, offset + 4] = en_passant_plane
-        full_state[:, :, offset + 5][:, :] = self.ply_count_without_adv / 20
-        full_state[:, :, offset + 6][:, :] = self.turn
-
-        if self.turn == 0:
-            full_state = np.fliplr(full_state)
-            full_state = np.flipud(full_state)
-        return full_state
+        return agent_state(self.dims, self.bitboards, self.castling_rights, self.turn, self.en_passant, self.has_en_passant, self.ply_count_without_adv)
 
     def move_magic(self, occupants: np.uint64, i: np.uint8, j: np.uint8, magic_table: np.ndarray, hash_table: np.ndarray, shift: np.uint8):
         """
@@ -196,7 +170,7 @@ class Chess:
         :param int8 dy: Delta in the file-dimension (j) to move.
         :param int promotion: Piece to promote to, defaults to -1
         """
-
+        
         enemy_turn = inv_color(self.turn)
         piece_at = self.piece_at(i, j, self.turn)
         self.move_pieces(piece_at, (i, j), (i + dx, j + dy), promotion)

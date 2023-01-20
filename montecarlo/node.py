@@ -3,8 +3,9 @@ from math import log, sqrt
 import numpy as np
 from minichess.chess.fastchess import Chess
 
-from minichess.chess.fastchess_utils import piece_matrix_to_legal_moves
+from minichess.chess.fastchess_utils import piece_matrix_to_legal_moves, legal_moves_to_illegal_move_mask, get_best_child
 from minichess.chess.move_utils import index_to_move, move_to_index
+from timeit import default_timer as timer
 
 
 def softmax(x):
@@ -38,12 +39,7 @@ class Node:
         self.child_number_visits = np.zeros((self.state.dims[0], self.state.dims[1], move_cap), dtype=np.float32)
 
         moves, proms = self.state.legal_moves()
-        legal_moves = piece_matrix_to_legal_moves(moves, proms)
-        self.illegal_moves_mask = np.ones_like(self.child_priors)
-        for move in legal_moves:
-            (i, j), (dx, dy), promotion = move
-            ind = move_to_index(self.all_moves, dx, dy, promotion, self.player_number)
-            self.illegal_moves_mask[i, j, ind] = 0
+        self.illegal_moves_mask = legal_moves_to_illegal_move_mask(moves, proms, self.child_priors.shape, self.all_moves, self.player_number)
 
     @property
     def number_visits(self):
@@ -93,20 +89,12 @@ class Node:
             self.win_value += value
             self.parent.update_win_value(value)
 
-    def child_Q(self):
-        return self.child_win_value / (1 + self.child_number_visits)
-
-    def child_U(self):
-        return self.cpuct * np.sqrt(self.number_visits) * (
-            self.child_priors / (1 + self.child_number_visits))
-
     def get_best_child(self):
         # This is slightly ugly, but it basically says that it should not, in a million years, visit the hypothetical "child-nodes"
         # that occur as a result of illegal moves.
-        if self.player_number == 0:
-            return np.unravel_index(np.argmin(self.child_Q() - self.child_U() + self.illegal_moves_mask * 100000), self.child_priors.shape)
-        else:
-            return np.unravel_index(np.argmax(self.child_Q() + self.child_U() - self.illegal_moves_mask * 100000), self.child_priors.shape)
+        res = get_best_child(self.player_number, self.child_win_value, self.child_number_visits, self.cpuct, self.number_visits, self.child_priors, self.illegal_moves_mask)
+        res = np.unravel_index(res, self.child_priors.shape)
+        return res
 
     def get_move_to_make_for_search(self, ply_count):
         distribution = self.child_number_visits.flatten()

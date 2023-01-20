@@ -2,6 +2,8 @@ from functools import lru_cache
 
 from montecarlo.node import Node
 
+from minichess.chess.fastchess_utils import prior_math
+
 import numpy as np
 
 
@@ -44,18 +46,6 @@ class MonteCarlo:
         # The search, however, is set up so that -1 is good for black, and 1 is good for white, regardless of who's playing
         # So if the neural net predicts 1 and it's black's turn, this means that it thinks that black is winning, but the search
         # will agree if it is given -1.
-        if leaf.state.turn == 0:
-            value_estimate *= -1
-        child_priors = np.reshape(child_priors, (self.dims[0], self.dims[1], self.move_cap))
-        noise = np.random.uniform(size=self.dims[0] * self.dims[1] * self.move_cap)
-        # Sum of noise is equal to 1
-        noise = noise.reshape(child_priors.shape)
-
-        noise = noise * (leaf.illegal_moves_mask == 0)
-
-        noise /= noise.sum()
-
-        child_priors = (1 - self.cnoise) * child_priors + self.cnoise * noise
-        child_priors /= child_priors.sum()
+        child_priors = prior_math(leaf.illegal_moves_mask, self.dims, child_priors, self.move_cap, self.cnoise, value_estimate, leaf.player_number)
         leaf.expand(child_priors)
         leaf.update_win_value(value_estimate)
