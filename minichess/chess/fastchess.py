@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state
+from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state, INVERSE_PIECE_LOOKUP
 
 
 class Chess:
@@ -71,6 +71,32 @@ class Chess:
 
         self.legal_move_cache = None
         self.promotion_move_cache = None
+
+    def fen(self):
+        fen_string = ""
+        for rank in range(self.dims[0]):
+            empties = 0
+            for file in range(self.dims[1]):
+                piece, color = self.any_piece_at(rank, file)
+                if piece == -1:
+                    empties += 1
+                else:
+                    if empties > 0:
+                        fen_string += str(empties)
+                        empties = 0
+                    piece_char = INVERSE_PIECE_LOOKUP[piece]
+                    if color == 0:
+                        piece_char = piece_char.upper()
+                    fen_string += piece_char
+            if rank != self.dims[0] - 1:
+                fen_string += '/'
+        en_passant_square = ...
+        halfmove_clock = ...
+        fullmove_number = ...
+        fen_string += " {} {} {}"
+        return fen_string
+        
+                
 
     def game_result(self):
         """
@@ -309,6 +335,13 @@ class Chess:
     def piece_at(self, i: np.uint8, j: np.uint8, turn: bool):
         """Returns the piece-type of the given color at the given position. -1 if none are found."""
         return self.piece_lookup[turn, i, j]
+    
+    def any_piece_at(self, i: np.uint8, j: np.uint8):
+        """Returns the piece-type at the given position and its color, if any. If no piece is found the color is set to 1."""
+        res = self.piece_at(i, j, 0)
+        if res != -1:
+            return res, 0
+        return self.piece_at(i, j, 1), 1
 
     def can_castle(self, side: bool, all_pieces: np.uint64, king_danger_squares: np.uint64):
         """Calculates if castling is legal to the current side. If castling is disabled for the given variant, castling rights are pre-set to 0.

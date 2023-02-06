@@ -19,6 +19,7 @@ PIECE_LOOKUP = {
     'q': 4
 }
 
+
 PAWN = 0,
 KNIGHT = 1,
 BISHOP = 2,
