@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from sklearn.metrics import accuracy_score
 import tensorflow as tf
+import larq
 
 
 class ConvNet:
@@ -13,9 +14,33 @@ class ConvNet:
         BLOCK_FILTER_SIZE = 32
         if not init:
             return
+        
+        BASE_RETAINMENT = 0.95
+
+        concept_inputs = keras.Input(20)
+
+        # TODO: net here...
+
+        concept_outputs = keras.layers.Dense(input_shape[0] * input_shape[1])(concept_inputs)
+        amplification_mask = keras.layers.Reshape((input_shape[0], input_shape[1]))(concept_outputs)
+
+        def element_wise_dropout(w):
+            inputs, amplifying_mask = w
+            # TODO: cut off the part of the input that isn't the board
+            # This means that (for all values of BASE_RETAINMENT) if the amplifying mask is at least 1, then the square is never dropped.
+            inputs = (inputs * BASE_RETAINMENT) + amplifying_mask * (1 - BASE_RETAINMENT) - 1
+            mask = tf.random.uniform(inputs.shape, minval=0, maxval=1)
+            inputs += mask
+            # Now, the inputs are between -1 and 1. This is then ready for quantization.
+        
+        def scaling(w):
+            # Go from "-1 to 1" to "0 to 1"
+            return (w + 1) * 0.5
+
         position_input = keras.Input((input_shape))
-        # Essentially make a list of matrices, which is an equivalent representation
-        base = keras.layers.Conv2D(BLOCK_FILTER_SIZE, (3, 3), activation="elu", padding="same", name="res_block_output_base")(position_input)
+        dropped_input = keras.layers.Lambda(element_wise_dropout)([position_input, amplification_mask])
+        # TODO: need to slice input correctly here
+        base = larq.layers.QuantConv2D(1, (3, 3), input_quantizer=larq.quantizers.SwishSign(beta=5.0), padding="same", name="res_block_output_base")(dropped_input)
         block_amount = 1
         base = keras.layers.Conv2D(BLOCK_FILTER_SIZE, (3, 3), activation="elu", padding="same")(base)
         base = keras.layers.Conv2D(BLOCK_FILTER_SIZE, (3, 3), activation="elu", padding="same")(base)

@@ -19,6 +19,7 @@ PIECE_LOOKUP = {
     'q': 4
 }
 
+
 PAWN = 0,
 KNIGHT = 1,
 BISHOP = 2,
@@ -238,7 +239,6 @@ def castling_masks(dims, board_name):
     for p, pair in enumerate(line_pairs):
         pair = pair.split("\n")
         pair = [p.strip() for p in pair]
-        print(pair)
         empty_mask, attack_mask = pair
 
         for turn in [0, 1]:

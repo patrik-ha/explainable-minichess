@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state
+from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state, INVERSE_PIECE_LOOKUP
 
 
 class Chess:
@@ -30,6 +30,7 @@ class Chess:
         has_en_passant=None,
         en_passant=None,
         ply_count=0,
+        half_move_count=0,
         turn=1
     ):
         self.bitboards = bitboards
@@ -69,8 +70,48 @@ class Chess:
         self.ply_count_without_adv = ply_count
         self.turn = turn
 
+        self.half_move_count = half_move_count
+
         self.legal_move_cache = None
         self.promotion_move_cache = None
+
+    def fen(self):
+        fen_string = ""
+        files = "abcdefghi"
+        ranks = "12345678"
+        for rank in range(self.dims[0]):
+            empties = 0
+            for file in range(self.dims[1]):
+                piece, color = self.any_piece_at(rank, file)
+                if piece == -1:
+                    empties += 1
+                else:
+                    if empties > 0:
+                        fen_string += str(empties)
+                        empties = 0
+                    piece_char = INVERSE_PIECE_LOOKUP[piece]
+                    if color == 1:
+                        piece_char = piece_char.upper()
+                    fen_string += piece_char
+            if empties > 0:
+                fen_string += str(empties)
+                empties = 0
+            if rank != self.dims[0] - 1:
+                fen_string += '/'
+
+        en_passant_square = "-" if not self.has_en_passant else files[self.en_passant[1]] + str((self.dims[0] + 1) - int(ranks[self.en_passant[0]]))
+        turn = "w" if self.turn else "b"
+        castling_rights = ""
+        castling_rights += "K" if self.castling_rights[1, 1] else ""
+        castling_rights += "Q" if self.castling_rights[1, 0] else ""
+        castling_rights += "k" if self.castling_rights[0, 1] else ""
+        castling_rights += "q" if self.castling_rights[0, 0] else ""
+        if castling_rights == "":
+            castling_rights = "-"
+        fen_string += " {} {} {} {} {}".format(turn, castling_rights, en_passant_square, self.ply_count_without_adv, self.half_move_count // 2 + 1)
+        return fen_string
+        
+                
 
     def game_result(self):
         """
@@ -173,6 +214,7 @@ class Chess:
         
         enemy_turn = inv_color(self.turn)
         piece_at = self.piece_at(i, j, self.turn)
+        piece_to = self.piece_at(i + dx, j + dy, inv_color(self.turn))
         self.move_pieces(piece_at, (i, j), (i + dx, j + dy), promotion)
         # If this was castling...
         if piece_at == 5 and abs(dy) == 2:
@@ -181,15 +223,24 @@ class Chess:
             rook_square_y_to = (j + dy + 1) if side == 0 else (j + dy - 1)
             self.move_pieces(3, (i, rook_square_y_from), (i, rook_square_y_to))
 
-        # If this voids castling...
+        # If this voids castling... (Moves king)
         if piece_at == 5:
             self.castling_rights[self.turn] = 0
 
+        # Moves own rook
         if piece_at == 3:
             side = 0 if j == 0 else 1
             back_rank = 0 if self.turn == 0 else self.dims[0] - 1
             if i == back_rank and (j == 0 or j == self.dims[1] - 1):
                 self.castling_rights[self.turn, side] = 0
+            
+        # Captures enemy rook
+        # (is caught by other checks, but need to do this explicitly for FEN support)
+        if piece_to == 3:
+            side = 0 if (j + dy) == 0 else 1
+            back_rank = 0 if enemy_turn == 0 else self.dims[0] - 1
+            if (i + dx) == back_rank and ((j + dy) == 0 or (j + dy) == self.dims[1] - 1):
+                self.castling_rights[enemy_turn, side] = 0
 
         # A capture (if there's someone already on the square)
         if piece_at == 0 and self.has_en_passant and self.en_passant[0] == i + dx and self.en_passant[1] == j + dy:
@@ -207,6 +258,9 @@ class Chess:
             self.ply_count_without_adv = 0
         else:
             self.ply_count_without_adv += 1
+        
+        self.half_move_count += 1
+
         self.piece_lookup[enemy_turn, target[0], target[1]] = -1
 
         # If this enables en-passant
@@ -309,6 +363,13 @@ class Chess:
     def piece_at(self, i: np.uint8, j: np.uint8, turn: bool):
         """Returns the piece-type of the given color at the given position. -1 if none are found."""
         return self.piece_lookup[turn, i, j]
+    
+    def any_piece_at(self, i: np.uint8, j: np.uint8):
+        """Returns the piece-type at the given position and its color, if any. If no piece is found the color is set to 1."""
+        res = self.piece_at(i, j, 0)
+        if res != -1:
+            return res, 0
+        return self.piece_at(i, j, 1), 1
 
     def can_castle(self, side: bool, all_pieces: np.uint64, king_danger_squares: np.uint64):
         """Calculates if castling is legal to the current side. If castling is disabled for the given variant, castling rights are pre-set to 0.
@@ -621,4 +682,4 @@ class Chess:
             self.PROMOTION_MASKS,
             self.castling_rights.copy(),
             self.has_en_passant, self.en_passant.copy(),
-            self.ply_count_without_adv, self.turn)
+            self.ply_count_without_adv, self.half_move_count, self.turn)
