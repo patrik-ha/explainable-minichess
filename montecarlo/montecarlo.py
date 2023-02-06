@@ -1,8 +1,8 @@
 from functools import lru_cache
 
-from montecarlo.node import Node
+from .node import Node
 
-from minichess.chess.fastchess_utils import prior_math
+from ..minichess.chess.fastchess_utils import prior_math
 
 import numpy as np
 
@@ -21,9 +21,10 @@ class MonteCarlo:
     def distribution(self):
         return self.root_node.child_number_visits
 
-    def move_root(self, node):
+    def move_root(self, node, cut_parent=True):
         self.root_node = node
-        self.root_node.parent = None
+        if cut_parent:
+            self.root_node.parent = None
 
     def make_choice(self, ply_count):
         best_move = self.root_node.get_move_to_make_for_search(ply_count)

@@ -1,5 +1,5 @@
-from minichess.chess.fastchess import Chess
-from minichess.chess.fastchess_utils import B_0, B_1, castling_attack_mask, castling_masks, diagonal_line_moves, flat, has_bit, inv_color, king_moves, knight_moves, load_board, pawn_attacks, pawn_moves_double, pawn_moves_single, print_bitboard, promotion_masks, set_bit, straight_line_moves, true_bits, unflat, unset_bit, visualize_board
+from ..chess.fastchess import Chess
+from ..chess.fastchess_utils import B_0, B_1, castling_attack_mask, castling_masks, diagonal_line_moves, flat, has_bit, inv_color, king_moves, knight_moves, load_board, pawn_attacks, pawn_moves_double, pawn_moves_single, print_bitboard, promotion_masks, set_bit, straight_line_moves, true_bits, unflat, unset_bit, visualize_board
 import numpy as np
 import json
 import random
@@ -7,7 +7,7 @@ import string
 import os
 from typing import Tuple
 
-from minichess.chess.magic import find_magic_bitboards, save_magic_bitboards
+from ..chess.magic import find_magic_bitboards, save_magic_bitboards
 
 
 def random_string(n):

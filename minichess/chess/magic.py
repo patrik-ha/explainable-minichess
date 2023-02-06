@@ -1,8 +1,8 @@
 import collections
 import os
 from queue import Queue
-from minichess.chess.fastchess_utils import B_0, flat, has_bit, in_bounds, print_bitboard, set_bit, straight_line_moves
-from minichess.chess.fastchess_utils import diagonal_line_moves
+from .fastchess_utils import B_0, flat, has_bit, in_bounds, print_bitboard, set_bit, straight_line_moves
+from .fastchess_utils import diagonal_line_moves
 import itertools
 
 import numpy as np

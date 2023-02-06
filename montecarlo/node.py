@@ -1,10 +1,10 @@
 import random
 from math import log, sqrt
 import numpy as np
-from minichess.chess.fastchess import Chess
+from ..minichess.chess.fastchess import Chess
 
-from minichess.chess.fastchess_utils import piece_matrix_to_legal_moves, legal_moves_to_illegal_move_mask, get_best_child
-from minichess.chess.move_utils import index_to_move, move_to_index
+from ..minichess.chess.fastchess_utils import piece_matrix_to_legal_moves, legal_moves_to_illegal_move_mask, get_best_child
+from ..minichess.chess.move_utils import index_to_move, move_to_index
 from timeit import default_timer as timer
 
 
