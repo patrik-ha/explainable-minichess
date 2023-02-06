@@ -74,6 +74,8 @@ class Chess:
 
     def fen(self):
         fen_string = ""
+        ranks = "abcdefghi"
+        files = "12345678"
         for rank in range(self.dims[0]):
             empties = 0
             for file in range(self.dims[1]):
@@ -90,10 +92,14 @@ class Chess:
                     fen_string += piece_char
             if rank != self.dims[0] - 1:
                 fen_string += '/'
-        en_passant_square = ...
-        halfmove_clock = ...
+        
+
+        en_passant_square = "-" if not self.has_en_passant else ranks[self.en_passant[0]] + files[self.en_passant[1]]
+        # TODO: need to track these
+        halfmove_clock = self.move
         fullmove_number = ...
-        fen_string += " {} {} {}"
+        turn = "w" if self.turn else "b"
+        fen_string += " {} {} {} {}"
         return fen_string
         
                 
