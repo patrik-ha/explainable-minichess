@@ -2,7 +2,10 @@ from functools import lru_cache
 
 from .node import Node
 
-from ..minichess.chess.fastchess_utils import prior_math
+try:
+    from ..minichess.chess.fastchess_utils import prior_math
+except ImportError:
+    from minichess.chess.fastchess_utils import prior_math
 
 import numpy as np
 

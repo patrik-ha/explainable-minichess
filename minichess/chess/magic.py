@@ -125,19 +125,19 @@ def find_magic_bitboards_for_straights(dims, shift):
     return find_magic_bitboards(dims, [(-1, 0), (1, 0), (0, -1), (0, 1)], straight_line_moves(dims), shift)
 
 
-def save_magic_bitboards(dims, shift=None):
+def save_magic_bitboards(dims, minichess_path, shift=None):
     if shift is None:
         shift = magic_shift_start_estimate(dims)
         print("Starting estimate for shift: {}".format(shift))
     print("Starting calculations for diagonal magics.")
-    os.makedirs("minichess/chess/magics/{}x{}".format(*dims), exist_ok=True)
+    os.makedirs("{}/chess/magics/{}x{}".format(minichess_path, *dims), exist_ok=True)
     diag_hash, diag_magics, diag_shift = find_magic_bitboards_for_diagonals(dims, shift)
-    np.savez("minichess/chess/magics/{}x{}/diagonals".format(*dims), hash_table=diag_hash, magics=diag_magics, shift=diag_shift)
+    np.savez("{}/chess/magics/{}x{}/diagonals".format(minichess_path, *dims), hash_table=diag_hash, magics=diag_magics, shift=diag_shift)
     print("Diagonal magics done!")
 
     print("Starting calculations for straight magics.")
     straight_hash, straight_magics, straight_shift = find_magic_bitboards_for_straights(dims, shift)
-    np.savez("minichess/chess/magics/{}x{}/straights".format(*dims), hash_table=straight_hash, magics=straight_magics, shift=straight_shift)
+    np.savez("{}/chess/magics/{}x{}/straights".format(minichess_path, *dims), hash_table=straight_hash, magics=straight_magics, shift=straight_shift)
     print("Straight line magics done!")
 
 
