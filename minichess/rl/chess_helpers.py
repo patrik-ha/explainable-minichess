@@ -1,5 +1,5 @@
-from minichess.chess.fastchess import Chess
-from minichess.chess.fastchess_utils import B_0, B_1, castling_attack_mask, castling_masks, diagonal_line_moves, flat, has_bit, inv_color, king_moves, knight_moves, load_board, pawn_attacks, pawn_moves_double, pawn_moves_single, print_bitboard, promotion_masks, set_bit, straight_line_moves, true_bits, unflat, unset_bit, visualize_board
+from ..chess.fastchess import Chess
+from ..chess.fastchess_utils import B_0, B_1, castling_attack_mask, castling_masks, diagonal_line_moves, flat, has_bit, inv_color, king_moves, knight_moves, load_board, pawn_attacks, pawn_moves_double, pawn_moves_single, print_bitboard, promotion_masks, set_bit, straight_line_moves, true_bits, unflat, unset_bit, visualize_board
 import numpy as np
 import json
 import random
@@ -7,7 +7,7 @@ import string
 import os
 from typing import Tuple
 
-from minichess.chess.magic import find_magic_bitboards, save_magic_bitboards
+from ..chess.magic import find_magic_bitboards, save_magic_bitboards
 
 
 def random_string(n):
@@ -29,19 +29,20 @@ def get_settings(config_file_path: str):
 
 def get_initial_chess_object(full_name: str):
     """Takes the name of the variant to play (e.g. 8x8standard) and returns a fully initialized Chess-object."""
-
-    board_path = "minichess/boards/{}".format(full_name)
+    # TODO: relative paths!!!
+    minichess_path =  os.path.abspath(os.path.join(__file__ ,"../.."))
+    board_path = "{}/boards/{}".format(minichess_path, full_name)
     bitboards, piece_lookup, dims = load_board(board_path)
 
-    if not os.path.exists("minichess/chess/magics/{}x{}/diagonals.npz".format(*dims)):
+    if not os.path.exists("{}/chess/magics/{}x{}/diagonals.npz".format(minichess_path, *dims)):
         print("Need to calculate magics for this board dimension variant.")
         print("This only needs to be done once, but it can take a couple of minutes for large boards.")
-        save_magic_bitboards(dims)
+        save_magic_bitboards(dims, minichess_path)
 
-    data = np.load("minichess/chess/magics/{}x{}/diagonals.npz".format(*dims))
+    data = np.load("{}/chess/magics/{}x{}/diagonals.npz".format(minichess_path, *dims))
     diagonal_hash_table, diagonal_magics, diag_shift = data["hash_table"], data["magics"], data["shift"]
 
-    data = np.load("minichess/chess/magics/{}x{}/straights.npz".format(*dims))
+    data = np.load("{}/chess/magics/{}x{}/straights.npz".format(minichess_path, *dims))
     straight_hash_table, straight_magics, straight_shift = data["hash_table"], data["magics"], data["shift"]
     PAWN_MOVES_SINGLE = pawn_moves_single(dims)
     PAWN_MOVES_DOUBLE = pawn_moves_double(dims)

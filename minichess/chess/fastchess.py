@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from minichess.chess.fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state, INVERSE_PIECE_LOOKUP
+from .fastchess_utils import B_0, B_1, flat, has_bit, inv_color, set_bit, true_bits, unflat, unset_bit, more_than_one_bit_set, agent_state, INVERSE_PIECE_LOOKUP
 
 
 class Chess:
