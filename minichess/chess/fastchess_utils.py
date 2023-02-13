@@ -265,11 +265,11 @@ def agent_state(dims, bitboards, castling_rights, turn, en_passant, has_en_passa
     full_state = np.zeros((dims[0], dims[1], 4 + 3 + 2 * 6), dtype=np.float32)
 
     # Brett for trekk og motstander
-    for turn in [0, 1]:
+    for _turn in [0, 1]:
         for piece_type in range(6):
-            for bit in true_bits(bitboards[turn, piece_type]):
+            for bit in true_bits(bitboards[_turn, piece_type]):
                 i, j = unflat(bit, dims)
-                full_state[i, j, 6 * turn + piece_type] = 1
+                full_state[i, j, 6 * _turn + piece_type] = 1
     offset = 6 * turn + 6
     # Mine rokeringsmuligheter
     full_state[:, :, offset] = castling_rights[turn, 0]
