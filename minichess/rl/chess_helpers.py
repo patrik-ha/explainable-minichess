@@ -1,12 +1,20 @@
-from ..chess.fastchess import Chess
-from ..chess.fastchess_utils import B_0, B_1, castling_attack_mask, castling_masks, diagonal_line_moves, flat, has_bit, inv_color, king_moves, knight_moves, load_board, pawn_attacks, pawn_moves_double, pawn_moves_single, print_bitboard, promotion_masks, set_bit, straight_line_moves, true_bits, unflat, unset_bit, visualize_board
-import numpy as np
 import json
+import os
 import random
 import string
-import os
 from typing import Tuple
 
+import numpy as np
+
+from ..chess.fastchess import Chess
+from ..chess.fastchess_utils import (B_0, B_1, castling_attack_mask,
+                                     castling_masks, diagonal_line_moves, flat,
+                                     has_bit, inv_color, king_moves,
+                                     knight_moves, load_board, pawn_attacks,
+                                     pawn_moves_double, pawn_moves_single,
+                                     print_bitboard, promotion_masks, set_bit,
+                                     straight_line_moves, true_bits, unflat,
+                                     unset_bit, visualize_board)
 from ..chess.magic import find_magic_bitboards, save_magic_bitboards
 
 
@@ -29,8 +37,7 @@ def get_settings(config_file_path: str):
 
 def get_initial_chess_object(full_name: str):
     """Takes the name of the variant to play (e.g. 8x8standard) and returns a fully initialized Chess-object."""
-    # TODO: relative paths!!!
-    minichess_path =  os.path.abspath(os.path.join(__file__ ,"../.."))
+    minichess_path =  os.path.join(os.getcwd(), "minichess")
     board_path = "{}/boards/{}".format(minichess_path, full_name)
     bitboards, piece_lookup, dims = load_board(board_path)
 
